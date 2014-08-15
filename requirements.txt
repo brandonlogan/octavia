@@ -1,4 +1,5 @@
 actdiag
+alembic>=0.6.4
 blockdiag
 docutils==0.11
 nwdiag
@@ -10,4 +11,5 @@ sphinxcontrib-actdiag
 sphinxcontrib-blockdiag
 sphinxcontrib-nwdiag
 sphinxcontrib-seqdiag
+SQLAlchemy>=0.7.8,<=0.9.99
 graphviz
