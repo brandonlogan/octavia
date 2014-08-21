@@ -147,7 +147,7 @@ def upgrade():
     )
 
     insert_table = sql.table(
-        u'protocol',
+        u'operating_status',
         sql.column(u'name', sa.String),
         sql.column(u'description', sa.String)
     )
@@ -260,15 +260,15 @@ def upgrade():
         sa.Column(u'connection_limit', sa.Integer(), nullable=True),
         sa.Column(u'load_balancer_id', sa.String(36), nullable=True),
         sa.Column(u'default_tls_container_id', sa.String(36), nullable=True),
-        sa.Column(u'pool_id', sa.String(36), nullable=True),
+        sa.Column(u'default_pool_id', sa.String(36), nullable=True),
         sa.Column(u'operating_status', sa.String(16), nullable=False),
         sa.Column(u'enabled', sa.Boolean(), nullable=False),
         sa.ForeignKeyConstraint([u'load_balancer_id'], [u'load_balancer.id']),
-        sa.ForeignKeyConstraint([u'pool_id'], [u'pool.id']),
+        sa.ForeignKeyConstraint([u'default_pool_id'], [u'pool.id']),
         sa.ForeignKeyConstraint([u'protocol'], [u'protocol.name']),
         sa.ForeignKeyConstraint([u'operating_status'],
                                 [u'operating_status.name']),
-        sa.UniqueConstraint(u'pool_id'),
+        sa.UniqueConstraint(u'default_pool_id'),
         sa.UniqueConstraint(u'load_balancer_id', u'protocol_port'),
         sa.PrimaryKeyConstraint(u'id')
     )
