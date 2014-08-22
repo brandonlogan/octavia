@@ -3,6 +3,8 @@ alembic>=0.6.4
 blockdiag
 docutils==0.11
 nwdiag
+oslo.config
+oslo.db
 oslosphinx
 pbr>=0.6,<1.0
 seqdiag
