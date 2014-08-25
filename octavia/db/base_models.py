@@ -15,10 +15,38 @@
 from oslo.db.sqlalchemy import models
 import sqlalchemy as sa
 from sqlalchemy.ext import declarative
+from sqlalchemy.orm import collections
 
 
 class OctaviaBase(models.ModelBase):
-    pass
+
+    __data_model__ = None
+
+    def to_data_model(self, calling_cls=None):
+        if not self.__data_model__:
+            #TODO(brandon-logan): create custom exception
+            raise NotImplementedError
+        dm_kwargs = {}
+        for column in self.__table__.columns:
+            dm_kwargs[column.name] = getattr(self, column.name)
+        attr_names = [attr_name for attr_name in dir(self)
+                      if not attr_name.startswith('_')]
+        for attr_name in attr_names:
+            attr = getattr(self, attr_name)
+            if isinstance(attr, OctaviaBase):
+                if attr.__class__ != calling_cls:
+                    dm_kwargs[attr_name] = attr.to_data_model(
+                        calling_cls=self.__class__)
+            elif isinstance(attr, collections.InstrumentedList):
+                dm_kwargs[attr_name] = []
+                for item in attr:
+                    if isinstance(item, OctaviaBase):
+                        if attr.__class__ != calling_cls:
+                            dm_kwargs[attr_name].append(
+                                item.to_data_model(calling_cls=self.__class__))
+                    else:
+                        dm_kwargs[attr_name].append(item)
+        return self.__data_model__(**dm_kwargs)
 
 
 class LookupTableMixin(object):

@@ -16,6 +16,7 @@ import sqlalchemy as sa
 from sqlalchemy import orm
 from sqlalchemy.orm import validates
 
+from octavia.common import data_models
 from octavia.db import base_models
 
 
@@ -51,6 +52,8 @@ class HealthMonitorType(base_models.BASE, base_models.LookupTableMixin):
 
 class SessionPersistence(base_models.BASE):
 
+    __data_model__ = data_models.SessionPersistence
+
     __tablename__ = "session_persistence"
 
     pool_id = sa.Column(sa.String(36), sa.ForeignKey("pool.id"),
@@ -59,13 +62,14 @@ class SessionPersistence(base_models.BASE):
                      sa.ForeignKey("session_persistence_type.name"),
                      nullable=False)
     cookie_name = sa.Column(sa.String(1024), nullable=True)
-    description = sa.Column(sa.String(255), nullable=True)
     pool = orm.relationship("Pool", uselist=False,
                             backref=orm.backref("session_persistence",
                                                 uselist=False))
 
 
 class ListenerStatistics(base_models.BASE):
+
+    __data_model__ = data_models.ListenerStatistics
 
     __tablename__ = "listener_statistics"
 
@@ -94,6 +98,8 @@ class ListenerStatistics(base_models.BASE):
 
 class Member(base_models.BASE, base_models.IdMixin, base_models.TenantMixin):
 
+    __data_model__ = data_models.Member
+
     __tablename__ = "member"
     __table_args__ = (
         sa.UniqueConstraint('pool_id', 'address', 'protocol_port'),
@@ -115,6 +121,8 @@ class Member(base_models.BASE, base_models.IdMixin, base_models.TenantMixin):
 class HealthMonitor(base_models.BASE, base_models.IdMixin,
                     base_models.TenantMixin):
 
+    __data_model__ = data_models.HealthMonitor
+
     __tablename__ = "health_monitor"
 
     type = sa.Column(sa.String(36), sa.ForeignKey("health_monitor_type.name"),
@@ -129,6 +137,8 @@ class HealthMonitor(base_models.BASE, base_models.IdMixin,
 
 
 class Pool(base_models.BASE, base_models.IdMixin, base_models.TenantMixin):
+
+    __data_model__ = data_models.Pool
 
     __tablename__ = "pool"
     __table_args__ = (
@@ -157,6 +167,8 @@ class Pool(base_models.BASE, base_models.IdMixin, base_models.TenantMixin):
 class LoadBalancer(base_models.BASE, base_models.IdMixin,
                    base_models.TenantMixin):
 
+    __data_model__ = data_models.LoadBalancer
+
     __tablename__ = "load_balancer"
 
     name = sa.Column(sa.String(255), nullable=True)
@@ -174,6 +186,8 @@ class LoadBalancer(base_models.BASE, base_models.IdMixin,
 
 
 class Listener(base_models.BASE, base_models.IdMixin, base_models.TenantMixin):
+
+    __data_model__ = data_models.Listener
 
     __tablename__ = "listener"
     __table_args__ = (

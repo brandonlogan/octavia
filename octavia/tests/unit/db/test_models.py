@@ -375,3 +375,33 @@ class LoadBalancerModelTest(base.OctaviaDBTestBase, ModelTestMixin):
             models.LoadBalancer).filter_by(id=load_balancer.id).first()
         self.assertIsNotNone(new_load_balancer.listeners)
         self.assertTrue(len(new_load_balancer.listeners) > 0)
+
+
+class DataModelConversionTest(base.OctaviaDBTestBase, ModelTestMixin):
+
+    def test_full_tree(self):
+        hm = self.create_health_monitor(self.session)
+        hm_dm = hm.to_data_model()
+        pool = self.create_pool(self.session, health_monitor_id=hm.id)
+        pool_dm = pool.to_data_model()
+        member1 = self.create_member(self.session, pool.id,
+                                     id=self.FAKE_UUID_1, address='10.0.0.1')
+        member1_dm = member1.to_data_model()
+        member2 = self.create_member(self.session, pool.id,
+                                     id=self.FAKE_UUID_2, address='10.0.0.2')
+        member2_dm = member2.to_data_model()
+        sp = self.create_session_persistence(self.session, pool.id)
+        sp_dm = sp.to_data_model()
+        lb = self.create_load_balancer(self.session)
+        lb_dm = lb.to_data_model
+        listener = self.create_listener(self.session, default_pool_id=pool.id,
+                                        load_balancer_id=lb.id)
+        listener_dm = listener.to_data_model()
+        stats = self.create_listener_statistics(self.session, listener.id)
+        stats_dm = stats.to_data_model()
+        db_lb = self.session.query(
+            models.LoadBalancer).filter_by(id=lb.id).first()
+        db_lb_dm = db_lb.to_data_model()
+        self.assertIsNotNone(db_lb_dm)
+        self.assertIsNotNone(db_lb_dm.listeners)
+        self.assertEqual(1, len(db_lb_dm.listeners))
