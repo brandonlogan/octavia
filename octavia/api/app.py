@@ -12,30 +12,27 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-from oslo.config import cfg
-from oslo.db.sqlalchemy import session as db_session
+import pecan
 
-_FACADE = None
-
-
-def _create_facade_lazily():
-    global _FACADE
-    if _FACADE is None:
-        _FACADE = db_session.EngineFacade.from_config(cfg.CONF)
-    return _FACADE
+from octavia.api import config as app_config
+from octavia.api.v1 import hooks
 
 
-def get_engine():
-    facade = _create_facade_lazily()
-    return facade.get_engine()
+def get_pecan_config():
+    filename = app_config.__file__.replace('.pyc', '.py')
+    return pecan.configuration.conf_from_file(filename)
 
 
-def _get_session(**kwargs):
-    facade = _create_facade_lazily()
-    return facade.get_session(**kwargs)
+def setup_app(pecan_config=None, debug=False):
+    app_hooks = [hooks.ContextHook()]
 
+    if not pecan_config:
+        pecan_config = get_pecan_config()
+    pecan.configuration.set_config(dict(pecan_config), overwrite=True)
 
-def get_session(**kwargs):
-    if not kwargs.get('expire_on_commit'):
-        kwargs['expire_on_commit'] = True
-    return _get_session(**kwargs)
+    return pecan.make_app(
+        pecan_config.app.root,
+        debug=debug,
+        hooks=app_hooks,
+        wsme=pecan_config.wsme
+    )

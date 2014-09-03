@@ -13,6 +13,8 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+import re
+
 
 class BaseDataModel(object):
 
@@ -33,6 +35,11 @@ class BaseDataModel(object):
         if isinstance(other, self.__class__):
             return self.to_dict() == other.to_dict()
         return False
+
+    @classmethod
+    def _name(cls):
+        # Split the class name up by capitalized words
+        return ' '.join(re.findall('[A-Z][^A-Z]*', cls.__name__))
 
 
 class SessionPersistence(BaseDataModel):

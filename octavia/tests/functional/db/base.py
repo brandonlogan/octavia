@@ -12,11 +12,23 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+import sqlite3
+
 from oslo.db.sqlalchemy import test_base
+from sqlalchemy.engine import Engine
+from sqlalchemy import event
 
 from octavia.common import constants
 from octavia.db import base_models
 from octavia.db import models
+
+
+@event.listens_for(Engine, "connect")
+def _set_sqlite_pragma(dbapi_connection, connection_record):
+    if isinstance(dbapi_connection, sqlite3.Connection):
+        cursor = dbapi_connection.cursor()
+        cursor.execute("PRAGMA foreign_keys=ON;")
+        cursor.close()
 
 
 class OctaviaDBTestBase(test_base.DbTestCase):

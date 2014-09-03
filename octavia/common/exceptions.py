@@ -17,6 +17,8 @@
 Octavia base exception handling.
 """
 
+from webob import exc
+
 from octavia.openstack.common import excutils
 
 
@@ -47,17 +49,54 @@ class OctaviaException(Exception):
         return False
 
 
-class BadRequest(OctaviaException):
-    message = _('Bad %(resource)s request: %(msg)s')
+# NOTE(blogan) Using webob exceptions here because WSME exceptions a very
+# limited at this point and they do not work well in _lookup methods in the
+# controllers
+class APIException(exc.HTTPClientError):
+    msg = "Something unknown went wrong"
+    code = 500
+
+    def __init__(self, **kwargs):
+        self.msg = self.msg % kwargs
+        super(APIException, self).__init__(detail=self.msg)
 
 
-class NotFound(OctaviaException):
-    message = _('%(resource)s not found.')
+class NotFound(APIException):
+    msg = _('%(resource)s %(id)s not found.')
+    code = 404
 
 
-class NotAuthorized(OctaviaException):
-    message = _("Not authorized.")
+class NotAuthorized(APIException):
+    msg = _("Not authorized.")
+    code = 401
+
+
+class InvalidOption(APIException):
+    msg = _("%(value)s is not a valid option for %(option)s")
+    code = 400
 
 
 class MissingArguments(OctaviaException):
     message = _("Missing arguments.")
+
+
+class DuplicateListenerEntry(APIException):
+    msg = _("Another Listener on this Load Balancer "
+            "is already using protocol_port %(port)d")
+    code = 409
+
+
+class DuplicateMemberEntry(APIException):
+    msg = _("Another member on this pool is already using ip %(ip_address)s "
+            "on protocol_port %(port)d")
+    code = 409
+
+
+class DuplicateHealthMonitor(APIException):
+    msg = _("This pool already has a health monitor")
+    code = 409
+
+
+class DuplicatePoolEntry(APIException):
+    msg = _("This listener already has a default pool")
+    code = 409

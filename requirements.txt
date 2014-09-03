@@ -4,6 +4,7 @@ blockdiag
 docutils==0.11
 nwdiag
 oslosphinx
+pecan>=0.7.0
 pbr>=0.6,<1.0
 seqdiag
 sphinx
@@ -29,3 +30,4 @@ oslo.messaging>=1.4.0.0a3
 oslo.rootwrap>=1.3.0.0a1
 python-novaclient>=2.17.0
 posix_ipc
+wsme==0.6.1

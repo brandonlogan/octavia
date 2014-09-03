@@ -1,4 +1,4 @@
-# Copyright 2014,  Doug Wiegley,  A10 Networks.
+#    Copyright 2014 Rackspace
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
 #    not use this file except in compliance with the License. You may obtain
@@ -12,15 +12,10 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-import octavia.common.exceptions as exc
-import octavia.tests.unit.base as base
+from wsme import exc
 
 
-class TestExceptions(base.TestCase):
-    # Rough sanity test of module import; not meant to be exhaustive
-
-    def test_exception(self):
-        try:
-            raise exc.NotFound(resource="test", id="test")
-        except exc.NotFound:
-            pass
+class NotFoundException(exc.ClientSideError):
+    def __init__(self, msg=None, status_code=404):
+        super(NotFoundException, self).__init__(
+            msg=msg, status_code=status_code)
