@@ -53,6 +53,91 @@ class BaseRepositoryTest(base.OctaviaDBTestBase):
         self.assertIsInstance(member_list, list)
 
 
+class AllRepositoriesTest(base.OctaviaDBTestBase):
+
+    def setUp(self):
+        super(AllRepositoriesTest, self).setUp()
+        self.repos = repo.Repositories()
+        self.listener = self.repos.listener.create(
+            self.session, protocol=constants.PROTOCOL_HTTP, protocol_port=80,
+            enabled=True, provisioning_status=constants.ACTIVE,
+            operating_status=constants.ONLINE)
+
+    def test_all_repos_has_correct_repos(self):
+        repo_attr_names = ('load_balancer', 'vip', 'health_monitor',
+                           'session_persistence', 'pool', 'member', 'listener',
+                           'listener_stats', 'amphora', 'sni')
+        for repo_attr in repo_attr_names:
+            single_repo = getattr(self.repos, repo_attr, None)
+            message = ("Class Repositories should have %s instance"
+                       " variable.") % repo_attr
+            self.assertIsNotNone(single_repo, message=message)
+            message = (("instance variable, %(repo_name)s, of class "
+                        "Repositories should be an instance of %(base)s") %
+                       {'repo_name': repo_attr,
+                        'base': repo.BaseRepository.__name__})
+            self.assertIsInstance(single_repo, repo.BaseRepository,
+                                  msg=message)
+
+        for attr in vars(self.repos):
+            if attr.startswith('_') or attr in repo_attr_names:
+                continue
+            possible_repo = getattr(self.repos, attr, None)
+            message = ('Class Repositories is not expected to have %s instance'
+                       ' variable as a repository.' % attr)
+            self.assertFalse(isinstance(possible_repo, repo.BaseRepository),
+                             msg=message)
+
+    def test_create_load_balancer_and_vip(self):
+        lb = {'name': 'test1', 'description': 'desc1', 'enabled': True,
+              'provisioning_status': constants.PENDING_UPDATE,
+              'operating_status': constants.OFFLINE}
+        vip = {'floating_ip_id': uuidutils.generate_uuid(),
+               'floating_ip_network_id': uuidutils.generate_uuid(),
+               'ip_address': '10.0.0.1',
+               'net_port_id': uuidutils.generate_uuid(),
+               'subnet_id': uuidutils.generate_uuid()}
+        lb_dm = self.repos.create_load_balancer_and_vip(self.session, lb, vip)
+        lb_dm_dict = lb_dm.to_dict()
+        del lb_dm_dict['vip']
+        del lb_dm_dict['listeners']
+        del lb_dm_dict['amphorae']
+        del lb_dm_dict['tenant_id']
+        self.assertEqual(lb, lb_dm_dict)
+        vip_dm_dict = lb_dm.vip.to_dict()
+        vip_dm_dict['load_balancer_id'] = lb_dm.id
+        del vip_dm_dict['load_balancer']
+        self.assertEqual(vip, vip_dm_dict)
+
+    def test_create_pool_on_listener_without_sp(self):
+        pool = {'protocol': constants.PROTOCOL_HTTP, 'name': 'pool1',
+                'description': 'desc1',
+                'lb_algorithm': constants.LB_ALGORITHM_ROUND_ROBIN,
+                'enabled': True, 'operating_status': constants.ONLINE}
+        pool_dm = self.repos.create_pool_on_listener(self.session,
+                                                     self.listener.id,
+                                                     pool)
+        pool_dm_dict = pool_dm.to_dict()
+        del pool_dm_dict['members']
+        del pool_dm_dict['health_monitor']
+        del pool_dm_dict['session_persistence']
+        del pool_dm_dict['listener']
+        del pool_dm_dict['tenant_id']
+        self.assertEqual(pool, pool_dm_dict)
+        new_listener = self.repos.listener.get(self.session,
+                                               id=self.listener.id)
+        self.assertEqual(pool_dm.id, new_listener.default_pool_id)
+
+    def test_create_pool_on_listener_with_sp(self):
+        pass
+
+    def test_update_pool_on_listener_without_sp(self):
+        pass
+
+    def test_update_pool_on_listener_with_sp(self):
+        pass
+
+
 class PoolRepositoryTest(BaseRepositoryTest):
 
     def create_pool(self, pool_id, tenant_id):
