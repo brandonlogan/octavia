@@ -17,6 +17,7 @@ Defines interface for DB access that Resource or Octavia Controllers may
 reference
 """
 
+from octavia.common import constants
 from octavia.common import exceptions
 from octavia.db import models
 from octavia.openstack.common import uuidutils
@@ -98,8 +99,7 @@ class Repositories(object):
                                  default_pool_id=pool_dict['id'])
         return self.pool.get(session, id=db_pool.id)
 
-    def update_pool_on_listener(self, session, pool_id,
-                                pool_dict, sp_dict=None):
+    def update_pool_on_listener(self, session, pool_id, pool_dict, sp_dict):
         with session.begin(subtransactions=True):
             self.pool.update(session, pool_id, **pool_dict)
             if sp_dict:
@@ -119,6 +119,15 @@ class Repositories(object):
 class LoadBalancerRepository(BaseRepository):
 
     model_class = models.LoadBalancer
+
+    def test_and_set_provisioning_status(self, session, id, status):
+        with session.begin(subtransactions=True):
+            lb = session.query(self.model_class).with_for_update().filter_by(
+                id=id).one()
+            if lb.provisioning_status not in constants.MUTABLE_STATUSES:
+                raise exceptions.ImmutableStatus
+            lb.provisioning_status = status
+            session.add(lb)
 
 
 class VipRepository(BaseRepository):

@@ -80,6 +80,10 @@ class MissingArguments(OctaviaException):
     message = _("Missing arguments.")
 
 
+class ImmutableStatus(OctaviaException):
+    message = _("Load Balancer is in an immutable status.")
+
+
 class DuplicateListenerEntry(APIException):
     msg = _("Another Listener on this Load Balancer "
             "is already using protocol_port %(port)d")
@@ -100,3 +104,8 @@ class DuplicateHealthMonitor(APIException):
 class DuplicatePoolEntry(APIException):
     msg = _("This listener already has a default pool")
     code = 409
+
+
+class ImmutableObject(APIException):
+    msg = _("%(resource)s %(id)s is immutable and cannot be updated.")
+    code = 422

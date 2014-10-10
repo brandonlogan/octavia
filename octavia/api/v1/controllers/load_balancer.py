@@ -81,8 +81,13 @@ class LoadBalancersController(base.BaseController):
         if not old_db_lb:
             raise exceptions.NotFound(
                 resource=data_models.LoadBalancer._name(), id=id)
+        try:
+            self.repositories.load_balancer.test_and_set_provisioning_status(
+                session, id, constants.PENDING_UPDATE)
+        except exceptions.ImmutableStatus:
+            raise exceptions.ImmutableObject(resource=old_db_lb._name(),
+                                             id=id)
         lb_dict = load_balancer.to_dict(render_unsets=False)
-        lb_dict['provisioning_status'] = constants.PENDING_UPDATE
         lb_dict['operating_status'] = old_db_lb.operating_status
         self.repositories.load_balancer.update(
             session, id, **lb_dict)

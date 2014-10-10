@@ -13,6 +13,7 @@
 #    under the License.
 
 from octavia.common import constants
+from octavia.common import exceptions
 from octavia.common import data_models as models
 from octavia.db import repositories as repo
 from octavia.openstack.common import uuidutils
@@ -129,13 +130,127 @@ class AllRepositoriesTest(base.OctaviaDBTestBase):
         self.assertEqual(pool_dm.id, new_listener.default_pool_id)
 
     def test_create_pool_on_listener_with_sp(self):
-        pass
+        pool = {'protocol': constants.PROTOCOL_HTTP, 'name': 'pool1',
+                'description': 'desc1',
+                'lb_algorithm': constants.LB_ALGORITHM_ROUND_ROBIN,
+                'enabled': True, 'operating_status': constants.ONLINE}
+        sp = {'type': constants.SESSION_PERSISTENCE_HTTP_COOKIE,
+              'cookie_name': 'cookie_monster'}
+        pool_dm = self.repos.create_pool_on_listener(self.session,
+                                                     self.listener.id,
+                                                     pool, sp_dict=sp)
+        pool_dm_dict = pool_dm.to_dict()
+        del pool_dm_dict['members']
+        del pool_dm_dict['health_monitor']
+        del pool_dm_dict['session_persistence']
+        del pool_dm_dict['listener']
+        del pool_dm_dict['tenant_id']
+        self.assertEqual(pool, pool_dm_dict)
+        sp_dm_dict = pool_dm.session_persistence.to_dict()
+        del sp_dm_dict['pool']
+        sp['pool_id'] = pool_dm.id
+        self.assertEqual(sp, sp_dm_dict)
+        new_listener = self.repos.listener.get(self.session,
+                                               id=self.listener.id)
+        self.assertEqual(pool_dm.id, new_listener.default_pool_id)
+        new_sp = self.repos.session_persistence.get(self.session,
+                                                    pool_id=pool_dm.id)
+        self.assertIsNotNone(new_sp)
 
     def test_update_pool_on_listener_without_sp(self):
-        pass
+        pool = {'protocol': constants.PROTOCOL_HTTP, 'name': 'pool1',
+                'description': 'desc1',
+                'lb_algorithm': constants.LB_ALGORITHM_ROUND_ROBIN,
+                'enabled': True, 'operating_status': constants.ONLINE}
+        pool_dm = self.repos.create_pool_on_listener(self.session,
+                                                     self.listener.id, pool)
+        update_pool = {'protocol': constants.PROTOCOL_TCP, 'name': 'up_pool'}
+        new_pool_dm = self.repos.update_pool_on_listener(
+            self.session, pool_dm.id, update_pool, None)
+        pool_dm_dict = new_pool_dm.to_dict()
+        del pool_dm_dict['members']
+        del pool_dm_dict['health_monitor']
+        del pool_dm_dict['session_persistence']
+        del pool_dm_dict['listener']
+        del pool_dm_dict['tenant_id']
+        pool.update(update_pool)
+        self.assertEqual(pool, pool_dm_dict)
+        self.assertIsNone(new_pool_dm.session_persistence)
 
-    def test_update_pool_on_listener_with_sp(self):
-        pass
+    def test_update_pool_on_listener_with_existing_sp(self):
+        pool = {'protocol': constants.PROTOCOL_HTTP, 'name': 'pool1',
+                'description': 'desc1',
+                'lb_algorithm': constants.LB_ALGORITHM_ROUND_ROBIN,
+                'enabled': True, 'operating_status': constants.ONLINE}
+        sp = {'type': constants.SESSION_PERSISTENCE_HTTP_COOKIE,
+              'cookie_name': 'cookie_monster'}
+        pool_dm = self.repos.create_pool_on_listener(self.session,
+                                                     self.listener.id,
+                                                     pool, sp_dict=sp)
+        update_pool = {'protocol': constants.PROTOCOL_TCP, 'name': 'up_pool'}
+        update_sp = {'type': constants.SESSION_PERSISTENCE_SOURCE_IP}
+        new_pool_dm = self.repos.update_pool_on_listener(
+            self.session, pool_dm.id, update_pool, update_sp)
+        pool_dm_dict = new_pool_dm.to_dict()
+        del pool_dm_dict['members']
+        del pool_dm_dict['health_monitor']
+        del pool_dm_dict['session_persistence']
+        del pool_dm_dict['listener']
+        del pool_dm_dict['tenant_id']
+        pool.update(update_pool)
+        self.assertEqual(pool, pool_dm_dict)
+        sp_dm_dict = new_pool_dm.session_persistence.to_dict()
+        del sp_dm_dict['pool']
+        sp['pool_id'] = pool_dm.id
+        sp.update(update_sp)
+        self.assertEqual(sp, sp_dm_dict)
+
+    def test_update_pool_on_listener_with_nonexisting_sp(self):
+        pool = {'protocol': constants.PROTOCOL_HTTP, 'name': 'pool1',
+                'description': 'desc1',
+                'lb_algorithm': constants.LB_ALGORITHM_ROUND_ROBIN,
+                'enabled': True, 'operating_status': constants.ONLINE}
+        pool_dm = self.repos.create_pool_on_listener(self.session,
+                                                     self.listener.id,
+                                                     pool)
+        update_pool = {'protocol': constants.PROTOCOL_TCP, 'name': 'up_pool'}
+        update_sp = {'type': constants.SESSION_PERSISTENCE_HTTP_COOKIE,
+                     'cookie_name': 'monster_cookie'}
+        new_pool_dm = self.repos.update_pool_on_listener(
+            self.session, pool_dm.id, update_pool, update_sp)
+        sp_dm_dict = new_pool_dm.session_persistence.to_dict()
+        del sp_dm_dict['pool']
+        update_sp['pool_id'] = pool_dm.id
+        update_sp.update(update_sp)
+        self.assertEqual(update_sp, sp_dm_dict)
+
+    def test_update_pool_on_listener_with_nonexisting_sp_delete_sp(self):
+        pool = {'protocol': constants.PROTOCOL_HTTP, 'name': 'pool1',
+                'description': 'desc1',
+                'lb_algorithm': constants.LB_ALGORITHM_ROUND_ROBIN,
+                'enabled': True, 'operating_status': constants.ONLINE}
+        pool_dm = self.repos.create_pool_on_listener(self.session,
+                                                     self.listener.id,
+                                                     pool)
+        update_pool = {'protocol': constants.PROTOCOL_TCP, 'name': 'up_pool'}
+        new_pool_dm = self.repos.update_pool_on_listener(
+            self.session, pool_dm.id, update_pool, None)
+        self.assertIsNone(new_pool_dm.session_persistence)
+
+    def test_update_pool_on_listener_with_existing_sp_delete_sp(self):
+        pool = {'protocol': constants.PROTOCOL_HTTP, 'name': 'pool1',
+                'description': 'desc1',
+                'lb_algorithm': constants.LB_ALGORITHM_ROUND_ROBIN,
+                'enabled': True, 'operating_status': constants.ONLINE}
+        sp = {'type': constants.SESSION_PERSISTENCE_HTTP_COOKIE,
+              'cookie_name': 'cookie_monster'}
+        pool_dm = self.repos.create_pool_on_listener(self.session,
+                                                     self.listener.id,
+                                                     pool, sp_dict=sp)
+        update_pool = {'protocol': constants.PROTOCOL_TCP, 'name': 'up_pool'}
+        new_pool_dm = self.repos.update_pool_on_listener(
+            self.session, pool_dm.id, update_pool, None)
+        self.assertIsNone(new_pool_dm.session_persistence)
 
 
 class PoolRepositoryTest(BaseRepositoryTest):
@@ -809,6 +924,29 @@ class LoadBalancerRepositoryTest(BaseRepositoryTest):
         self.assertIsNone(self.vip_repo.get(self.session,
                                             load_balancer_id=lb.id))
         self.assertIsNone(self.listener_repo.get(self.session, id=listener.id))
+
+    def test_test_and_set_provisioning_status_immutable(self):
+        lb_id = uuidutils.generate_uuid()
+        self.lb_repo.create(self.session, id=lb_id,
+                            provisioning_status=constants.PENDING_CREATE,
+                            operating_status=constants.OFFLINE,
+                            enabled=True)
+        self.assertRaises(exceptions.ImmutableStatus,
+                          self.lb_repo.test_and_set_provisioning_status,
+                          self.session, lb_id, constants.PENDING_UPDATE)
+        lb = self.lb_repo.get(self.session, id=lb_id)
+        self.assertEqual(constants.PENDING_CREATE, lb.provisioning_status)
+
+    def test_test_and_set_provisioning_status_mutable(self):
+        lb_id = uuidutils.generate_uuid()
+        self.lb_repo.create(self.session, id=lb_id,
+                            provisioning_status=constants.ACTIVE,
+                            operating_status=constants.OFFLINE,
+                            enabled=True)
+        self.lb_repo.test_and_set_provisioning_status(
+            self.session, lb_id, constants.PENDING_UPDATE)
+        lb = self.lb_repo.get(self.session, id=lb_id)
+        self.assertEqual(constants.PENDING_UPDATE, lb.provisioning_status)
 
 
 class VipRepositoryTest(BaseRepositoryTest):
