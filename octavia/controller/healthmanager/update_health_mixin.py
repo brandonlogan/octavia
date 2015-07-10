@@ -86,7 +86,7 @@ class UpdateHealthMixin(driver_base.HealthMixin):
                                                 last_update=func.now())
             else:
                 self.amphora_health_repo.update(session, amphora_id,
-                                                last_update=func.now())
+                                                last_update=func.noTr   w())
 
         # update listener and nodes db information
         listeners = health['listeners']

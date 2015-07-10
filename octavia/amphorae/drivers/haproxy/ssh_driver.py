@@ -19,8 +19,9 @@ from oslo_log import log as logging
 import paramiko
 import six
 
+from octavia.amphorae import data_models as amp_data_models
 from octavia.amphorae.driver_exceptions import exceptions as exc
-from octavia.amphorae.drivers import driver_base as driver_base
+from octavia.amphorae.drivers import base
 from octavia.amphorae.drivers.haproxy.jinja import jinja_cfg
 from octavia.certificates.manager import barbican
 from octavia.common.config import cfg
@@ -31,11 +32,11 @@ from octavia.i18n import _LW
 LOG = logging.getLogger(__name__)
 
 
-class HaproxyManager(driver_base.AmphoraLoadBalancerDriver):
+class HaproxyManager(base.AmphoraLoadBalancerDriver):
 
     amp_config = cfg.CONF.haproxy_amphora
 
-    def __init__(self):
+    def __init__(self, network_driver, compute_driver):
         super(HaproxyManager, self).__init__()
         self.amphoraconfig = {}
         self.client = paramiko.SSHClient()
@@ -45,9 +46,25 @@ class HaproxyManager(driver_base.AmphoraLoadBalancerDriver):
             base_amp_path=self.amp_config.base_path,
             base_crt_dir=self.amp_config.base_cert_dir,
             haproxy_template=self.amp_config.haproxy_template)
+        self.network = network_driver
+        self.compute = compute_driver
 
-    def get_logger(self):
-        return LOG
+    def _port_to_vip(self, port, load_balancer_id=None):
+        port = port['port']
+        ip_address = port['fixed_ips'][0]['ip_address']
+        network_id = port['network_id']
+        port_id = port['id']
+        return data_models.Vip(ip_address=ip_address,
+                               network_id=network_id,
+                               port_id=port_id,
+                               load_balancer_id=load_balancer_id)
+
+    def _nova_interface_to_octavia_interface(self, amphora_id, nova_interface):
+        ip_address = nova_interface.fixed_ips[0]['ip_address']
+        return amp_data_models.Interface(amphora_id=amphora_id,
+                                         network_id=nova_interface.net_id,
+                                         port_id=nova_interface.port_id,
+                                         ip_address=ip_address)
 
     def update(self, listener, vip):
         LOG.debug("Amphora %s haproxy, updating listener %s, vip %s",
@@ -128,7 +145,51 @@ class HaproxyManager(driver_base.AmphoraLoadBalancerDriver):
                   self.__class__.__name__, amphora.id)
         self.amphoraconfig[amphora.id] = (amphora.id, 'finalize amphora')
 
-    def post_vip_plug(self, load_balancer):
+    def deallocate_vip(self, vip):
+        pass
+
+    def plug_network(self, amphora, network_id, ip_address=None):
+        self._post_network_plug(amphora)
+
+    def unplug_network(self, amphora_id, network_id, ip_address=None):
+        pass
+
+    def unplug_vip(self, load_balancer, vip):
+        pass
+
+    def allocate_vip(self, load_balancer):
+        if len(load_balancer.amphorae) != 1:
+            raise exc.AllocateVIPException("There should only be one amphora"
+                                           " alloated to a load balancer for"
+                                           " this driver.")
+        if not load_balancer.vip.port_id and not load_balancer.vip.subnet_id:
+            raise exc.AllocateVIPException("vip port_id and vip subnet_id are"
+                                           " empty")
+        if load_balancer.vip.port_id:
+            port = self.network.show_port(load_balancer.vip.port_id)
+            # NOTE(blogan): Just choosing the first fixed_ip because we do not
+            # know what subnet_id to use
+            subnet_id = port.fixed_ips[0].subnet_id
+        if load_balancer.vip.subnet_id:
+            ports = self.network.list_ports(
+                device_id=load_balancer.amphorae[0].compute_id,
+                subnet_id=load_balancer.vip.subnet_id)
+            port = ports[0]
+            subnet_id = load_balancer.vip.subnet_id
+
+        vip_addr = None
+        for fixed_ip in port.fixed_ips:
+            if fixed_ip.subnet_id == subnet_id:
+                vip_addr = fixed_ip.ip_address
+        return data_models.Vip(ip_address=vip_addr,
+                               subnet_id=subnet_id,
+                               port_id=port.id,
+                               load_balancer_id=load_balancer.id)
+
+    def plug_vip(self, load_balancer, vip):
+        self._post_vip_plug(load_balancer)
+
+    def _post_vip_plug(self, load_balancer):
         LOG.debug("Add vip to interface for all amphora on %s",
                   load_balancer.id)
 
@@ -167,7 +228,7 @@ class HaproxyManager(driver_base.AmphoraLoadBalancerDriver):
             self._execute_command(command, run_as_root=True)
             self.client.close()
 
-    def post_network_plug(self, amphora):
+    def _post_network_plug(self, amphora):
         self._connect(hostname=amphora.lb_network_ip)
         stdout, _ = self._execute_command(
             "ip link | grep DOWN -m 1 | awk '{print $2}'")

@@ -18,6 +18,7 @@ from taskflow.patterns import linear_flow
 from taskflow import retry
 
 from octavia.common import constants
+from octavia.controller.worker import flows
 from octavia.controller.worker.flows import load_balancer_flows
 from octavia.controller.worker.tasks import amphora_driver_tasks
 from octavia.controller.worker.tasks import cert_task
@@ -30,11 +31,14 @@ CONF = cfg.CONF
 CONF.import_group('controller_worker', 'octavia.common.config')
 
 
-class AmphoraFlows(object):
-    def __init__(self):
-        # for some reason only this has the values from the config file
-        self.REST_AMPHORA_DRIVER = (CONF.controller_worker.amphora_driver ==
-                                    'amphora_haproxy_rest_driver')
+class AmphoraFlows(flows.BaseFlows):
+
+    def __init__(self, network_driver=None, compute_driver=None,
+                 amphora_driver=None):
+        super(AmphoraFlows, self).__init__(
+            network_driver=network_driver,
+            compute_driver=compute_driver,
+            amphora_driver=amphora_driver)
         self._lb_flows = load_balancer_flows.LoadBalancerFlows()
 
     def get_create_amphora_flow(self):
@@ -91,16 +95,10 @@ class AmphoraFlows(object):
                                                   CREATE_AMPHORA_FOR_LB_FLOW)
         create_amp_for_lb_flow.add(database_tasks.CreateAmphoraInDB(
             provides=constants.AMPHORA_ID))
-        if self.REST_AMPHORA_DRIVER:
-            create_amp_for_lb_flow.add(cert_task.GenerateServerPEMTask(
-                provides=constants.SERVER_PEM))
-            create_amp_for_lb_flow.add(compute_tasks.CertComputeCreate(
-                requires=(constants.AMPHORA_ID, constants.SERVER_PEM),
-                provides=constants.COMPUTE_ID))
-        else:
-            create_amp_for_lb_flow.add(compute_tasks.ComputeCreate(
-                requires=constants.AMPHORA_ID,
-                provides=constants.COMPUTE_ID))
+        create_amp_for_lb_flow.add(compute_tasks.ComputeCreate(
+            self.compute_driver,
+            requires=constants.AMPHORA_ID,
+            provides=constants.COMPUTE_ID))
         create_amp_for_lb_flow.add(database_tasks.UpdateAmphoraComputeId(
             requires=(constants.AMPHORA_ID, constants.COMPUTE_ID)))
         create_amp_for_lb_flow.add(database_tasks.MarkAmphoraBootingInDB(
@@ -110,6 +108,7 @@ class AmphoraFlows(object):
                                                        controller_worker.
                                                        amp_active_retries))
         wait_flow.add(compute_tasks.ComputeWait(
+            self.compute_driver,
             requires=constants.COMPUTE_ID,
             provides=constants.COMPUTE_OBJ))
         wait_flow.add(database_tasks.UpdateAmphoraInfo(
@@ -117,6 +116,7 @@ class AmphoraFlows(object):
             provides=constants.AMPHORA))
         create_amp_for_lb_flow.add(wait_flow)
         create_amp_for_lb_flow.add(amphora_driver_tasks.AmphoraFinalize(
+            self.amphora_driver,
             requires=constants.AMPHORA))
         create_amp_for_lb_flow.add(
             database_tasks.MarkAmphoraAllocatedInDB(

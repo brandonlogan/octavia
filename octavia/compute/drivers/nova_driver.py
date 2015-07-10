@@ -34,11 +34,12 @@ CONF.import_group('networking', 'octavia.common.config')
 class VirtualMachineManager(compute_base.ComputeBase):
     '''Compute implementation of virtual machines via nova.'''
 
-    def __init__(self, region=None):
+    def __init__(self, network_driver, region=None):
         super(VirtualMachineManager, self).__init__()
         # Must initialize nova api
         self._nova_client = NovaAuth.get_nova_client(region)
         self.manager = self._nova_client.servers
+        self.network = network_driver
 
     def build(self, name="amphora_name", amphora_flavor=None, image_id=None,
               key_name=None, sec_groups=None, network_ids=None,

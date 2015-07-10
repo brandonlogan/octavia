@@ -33,14 +33,9 @@ LOG = logging.getLogger(__name__)
 class BaseComputeTask(task.Task):
     """Base task to load drivers common to the tasks."""
 
-    def __init__(self, **kwargs):
+    def __init__(self, driver, **kwargs):
         super(BaseComputeTask, self).__init__(**kwargs)
-        self.compute = stevedore_driver.DriverManager(
-            namespace='octavia.compute.drivers',
-            name=CONF.controller_worker.compute_driver,
-            invoke_on_load=True,
-            invoke_kwds={'region': CONF.nova_region_name}
-        ).driver
+        self.compute = driver
 
 
 class ComputeCreate(BaseComputeTask):

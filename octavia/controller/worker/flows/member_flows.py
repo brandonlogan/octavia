@@ -19,7 +19,7 @@ from octavia.common import constants
 from octavia.controller.worker.tasks import amphora_driver_tasks
 from octavia.controller.worker.tasks import database_tasks
 from octavia.controller.worker.tasks import model_tasks
-from octavia.controller.worker.tasks import network_tasks
+from octavia.controller.worker.tasks import network_orchestration_tasks
 
 
 class MemberFlows(object):
@@ -30,10 +30,10 @@ class MemberFlows(object):
         :returns: The flow for creating a member
         """
         create_member_flow = linear_flow.Flow(constants.CREATE_MEMBER_FLOW)
-        create_member_flow.add(network_tasks.CalculateDelta(
+        create_member_flow.add(network_orchestration_tasks.CalculateDelta(
             requires=constants.LOADBALANCER,
             provides=constants.DELTAS))
-        create_member_flow.add(network_tasks.HandleNetworkDeltas(
+        create_member_flow.add(network_orchestration_tasks.HandleNetworkDeltas(
             requires=constants.DELTAS))
         create_member_flow.add(amphora_driver_tasks.AmphoraePostNetworkPlug(
             requires=constants.LOADBALANCER

@@ -237,7 +237,7 @@ class TestAllowedAddressPairsDriver(base.TestCase):
                           self.driver.unplug_vip, lb, lb.vip)
         update_port.side_effect = None
         update_port.reset_mock()
-        self.driver.unplug_vip(lb, lb.vip)
+        self.driver.unplugwhats_vip(lb, lb.vip)
         self.assertEqual(len(lb.amphorae), update_port.call_count)
         clear_aap = {'port': {'allowed_address_pairs': []}}
         update_port.assert_has_calls([mock.call(if1.port_id, clear_aap),

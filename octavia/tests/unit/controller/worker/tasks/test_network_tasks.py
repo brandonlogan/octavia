@@ -19,7 +19,7 @@ from oslo_utils import uuidutils
 import six
 
 from octavia.common import data_models as o_data_models
-from octavia.controller.worker.tasks import network_tasks
+from octavia.controller.worker.tasks import network_orchestration_tasks
 from octavia.network import base as net_base
 from octavia.network import data_models
 import octavia.tests.unit.base as base
@@ -52,7 +52,7 @@ class TestException(Exception):
 @mock.patch('stevedore.driver.DriverManager.driver')
 class TestNetworkTasks(base.TestCase):
     def setUp(self):
-        network_tasks.LOG = mock.MagicMock()
+        network_orchestration_tasks.LOG = mock.MagicMock()
         self.amphora_mock = mock.MagicMock()
         self.load_balancer_mock = mock.MagicMock()
         self.load_balancer_mock.amphorae = []
@@ -75,7 +75,7 @@ class TestNetworkTasks(base.TestCase):
         def _interface(network_id):
             return [data_models.Interface(network_id=network_id)]
 
-        net = network_tasks.CalculateDelta()
+        net = network_orchestration_tasks.CalculateDelta()
 
         self.assertEqual(EMPTY, net.execute(self.load_balancer_mock))
 
@@ -130,7 +130,7 @@ class TestNetworkTasks(base.TestCase):
     def test_get_plumbed_networks(self,
                                   mock_driver):
         mock_driver.get_plugged_networks.side_effect = [['blah']]
-        net = network_tasks.GetPlumbedNetworks()
+        net = network_orchestration_tasks.GetPlumbedNetworks()
 
         self.assertEqual(['blah'], net.execute(self.amphora_mock))
         mock_driver.get_plugged_networks.assert_called_once_with(
@@ -142,7 +142,7 @@ class TestNetworkTasks(base.TestCase):
         def _interface(network_id):
             return [data_models.Interface(network_id=network_id)]
 
-        net = network_tasks.PlugNetworks()
+        net = network_orchestration_tasks.PlugNetworks()
 
         net.execute(self.amphora_mock, None)
         self.assertFalse(mock_driver.plug_network.called)
@@ -196,7 +196,7 @@ class TestNetworkTasks(base.TestCase):
         def _interface(network_id):
             return [data_models.Interface(network_id=network_id)]
 
-        net = network_tasks.UnPlugNetworks()
+        net = network_orchestration_tasks.UnPlugNetworks()
 
         net.execute(self.amphora_mock, None)
         self.assertFalse(mock_driver.unplug_network.called)
@@ -230,7 +230,7 @@ class TestNetworkTasks(base.TestCase):
         def _interface(network_id):
             return [data_models.Interface(network_id=network_id)]
 
-        net = network_tasks.HandleNetworkDeltas()
+        net = network_orchestration_tasks.HandleNetworkDeltas()
 
         net.execute([])
         self.assertFalse(mock_driver.plug_network.called)
@@ -304,7 +304,7 @@ class TestNetworkTasks(base.TestCase):
 
     def test_plug_vip(self,
                       mock_driver):
-        net = network_tasks.PlugVIP()
+        net = network_orchestration_tasks.PlugVIP()
 
         mock_driver.plug_vip.return_value = ["vip"]
 
@@ -317,13 +317,13 @@ class TestNetworkTasks(base.TestCase):
         mock_driver.unplug_vip.assert_called_once_with(LB, LB.vip)
 
     def test_unplug_vip(self, mock_driver):
-        net = network_tasks.UnplugVIP()
+        net = network_orchestration_tasks.UnplugVIP()
 
         net.execute(LB)
         mock_driver.unplug_vip.assert_called_once_with(LB, LB.vip)
 
     def test_allocate_vip(self, mock_driver):
-        net = network_tasks.AllocateVIP()
+        net = network_orchestration_tasks.AllocateVIP()
 
         mock_driver.allocate_vip.return_value = LB.vip
 
@@ -336,7 +336,7 @@ class TestNetworkTasks(base.TestCase):
         mock_driver.deallocate_vip.assert_called_once_with(vip_mock)
 
     def test_deallocate_vip(self, mock_driver):
-        net = network_tasks.DeallocateVIP()
+        net = network_orchestration_tasks.DeallocateVIP()
         vip = o_data_models.Vip()
         lb = o_data_models.LoadBalancer(vip=vip)
         net.execute(lb)

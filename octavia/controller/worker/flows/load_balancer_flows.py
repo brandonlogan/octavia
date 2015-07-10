@@ -17,19 +17,20 @@ from oslo_config import cfg
 from taskflow.patterns import linear_flow
 
 from octavia.common import constants
+from octavia.controller.worker import flows
 from octavia.controller.worker.tasks import amphora_driver_tasks
 from octavia.controller.worker.tasks import compute_tasks
 from octavia.controller.worker.tasks import controller_tasks
 from octavia.controller.worker.tasks import database_tasks
-from octavia.controller.worker.tasks import network_tasks
+from octavia.controller.worker.tasks import network_orchestration_tasks
 
 CONF = cfg.CONF
 CONF.import_group('controller_worker', 'octavia.common.config')
 
 
-class LoadBalancerFlows(object):
+class LoadBalancerFlows(flows.BaseFlows):
 
-    def get_create_load_balancer_flow(self):
+    def get_create_load_balancer(self):
         """Creates a flow to create a load balancer.
 
         :returns: The flow for creating a load balancer
@@ -67,13 +68,13 @@ class LoadBalancerFlows(object):
         delete_LB_flow = linear_flow.Flow(constants.DELETE_LOADBALANCER_FLOW)
         delete_LB_flow.add(controller_tasks.DeleteListenersOnLB(
             requires=constants.LOADBALANCER))
-        delete_LB_flow.add(network_tasks.UnplugVIP(
+        delete_LB_flow.add(network_orchestration_tasks.UnplugVIP(
             requires=constants.LOADBALANCER))
         delete_LB_flow.add(compute_tasks.DeleteAmphoraeOnLoadBalancer(
             requires=constants.LOADBALANCER))
         delete_LB_flow.add(database_tasks.MarkLBAmphoraeDeletedInDB(
             requires=constants.LOADBALANCER))
-        delete_LB_flow.add(network_tasks.DeallocateVIP(
+        delete_LB_flow.add(network_orchestration_tasks.DeallocateVIP(
             requires=constants.LOADBALANCER))
         delete_LB_flow.add(database_tasks.MarkLBDeletedInDB(
             requires=constants.LOADBALANCER))
@@ -88,13 +89,15 @@ class LoadBalancerFlows(object):
 
         new_LB_net_subflow = linear_flow.Flow(constants.
                                               LOADBALANCER_NETWORKING_SUBFLOW)
-        new_LB_net_subflow.add(network_tasks.AllocateVIP(
+        new_LB_net_subflow.add(network_orchestration_tasks.AllocateVIP(
+            self.network_driver,
             requires=constants.LOADBALANCER,
             provides=constants.VIP))
         new_LB_net_subflow.add(database_tasks.UpdateVIPAfterAllocation(
             requires=(constants.LOADBALANCER_ID, constants.VIP),
             provides=constants.LOADBALANCER))
-        new_LB_net_subflow.add(network_tasks.PlugVIP(
+        new_LB_net_subflow.add(network_orchestration_tasks.PlugVIP(
+            self.network_driver,
             requires=constants.LOADBALANCER,
             provides=constants.AMPS_DATA))
         new_LB_net_subflow.add(database_tasks.UpdateAmphoraVIPData(
@@ -104,6 +107,7 @@ class LoadBalancerFlows(object):
             requires=constants.LOADBALANCER_ID,
             provides=constants.LOADBALANCER))
         new_LB_net_subflow.add(amphora_driver_tasks.AmphoraPostVIPPlug(
+            self.network_driver,
             requires=constants.LOADBALANCER))
 
         return new_LB_net_subflow

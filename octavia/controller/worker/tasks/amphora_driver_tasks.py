@@ -33,14 +33,9 @@ LOG = logging.getLogger(__name__)
 class BaseAmphoraTask(task.Task):
     """Base task to load drivers common to the tasks."""
 
-    def __init__(self, **kwargs):
+    def __init__(self, driver, **kwargs):
         super(BaseAmphoraTask, self).__init__(**kwargs)
-        self.amphora_driver = stevedore_driver.DriverManager(
-            namespace='octavia.amphora.drivers',
-            name=CONF.controller_worker.amphora_driver,
-            invoke_on_load=True
-        ).driver
-
+        self.amphora_driver = driver
         self.amphora_repo = repo.AmphoraRepository()
         self.listener_repo = repo.ListenerRepository()
         self.loadbalancer_repo = repo.LoadBalancerRepository()

@@ -118,3 +118,51 @@ class HealthMonitorProvisioningError(ProvisioningErrors):
 class NodeProvisioningError(ProvisioningErrors):
 
     message = _('couldn\'t provision Node')
+
+
+class PlugVIPException(AmphoraDriverError):
+    pass
+
+
+class UnplugVIPException(AmphoraDriverError):
+    pass
+
+
+class AllocateVIPException(AmphoraDriverError):
+    pass
+
+
+class DeallocateVIPException(AmphoraDriverError):
+    pass
+
+
+class PlugNetworkException(AmphoraDriverError):
+    pass
+
+
+class UnplugNetworkException(AmphoraDriverError):
+    pass
+
+
+class VIPInUseException(AmphoraDriverError):
+    pass
+
+
+class PortNotFound(AmphoraDriverError):
+    pass
+
+
+class NetworkNotFound(AmphoraDriverError):
+    pass
+
+
+class VIPConfigurationNotFound(AmphoraDriverError):
+    pass
+
+
+class AmphoraNotFound(AmphoraDriverError):
+    pass
+
+
+class PluggedVIPNotFound(AmphoraDriverError):
+    pass
