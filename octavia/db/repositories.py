@@ -26,6 +26,7 @@ from oslo_utils import uuidutils
 from octavia.common import constants
 from octavia.common import exceptions
 from octavia.db import models
+from octavia.db import prepare
 
 
 CONF = cfg.CONF
@@ -134,6 +135,37 @@ class Repositories(object):
         self.amphorahealth = AmphoraHealthRepository()
         self.vrrpgroup = VRRPGroupRepository()
 
+    def _create_lb_and_vip_transaction(self, session, lb_dict, vip_dict):
+        with session.begin(subtransactions=True):
+            lb = models.LoadBalancer(**lb_dict)
+            session.add(lb)
+            vip_dict['load_balancer_id'] = lb_dict['id']
+            vip = models.Vip(**vip_dict)
+            session.add(vip)
+            return lb
+
+    def create_load_balancer_tree(self, session, lb_dict):
+        listener_dicts = lb_dict.pop('listeners', [])
+        vip_dict = lb_dict.pop('vip')
+        with session.begin(subtransactions=True):
+            lb_dm = self._create_lb_and_vip_transaction(
+                session, lb_dict, vip_dict)
+            for listener_dict in listener_dicts:
+                pool_dict = listener_dict.pop('default_pool', None)
+                if pool_dict:
+                    hm_dict = pool_dict.pop('health_monitor', None)
+                    member_dicts = pool_dict.pop('members', [])
+                    pool_dm = self.pool.create(session, **pool_dict)
+                    if hm_dict:
+                        hm_dict['pool_id'] = pool_dm.id
+                        self.health_monitor.create(session, **hm_dict)
+                    for member_dict in member_dicts:
+                        member_dict['pool_id'] = pool_dm.id
+                        self.member.create(session, **member_dict)
+                    listener_dict['default_pool_id'] = pool_dm.id
+                self.listener.create(session, **listener_dict)
+        return self.load_balancer.get(session, id=lb_dm.id)
+
     def create_load_balancer_and_vip(self, session, lb_dict, vip_dict):
         """Inserts load balancer and vip entities into the database.
 
@@ -145,14 +177,9 @@ class Repositories(object):
         :param vip_dict: Dictionary representation of a vip
         :returns: octava.common.data_models.LoadBalancer
         """
-        with session.begin():
-            if not lb_dict.get('id'):
-                lb_dict['id'] = uuidutils.generate_uuid()
-            lb = models.LoadBalancer(**lb_dict)
-            session.add(lb)
-            vip_dict['load_balancer_id'] = lb_dict['id']
-            vip = models.Vip(**vip_dict)
-            session.add(vip)
+        with session.begin(subtransactions=True):
+            lb = self._create_lb_and_vip_transaction(
+                session, lb_dict, vip_dict)
         return self.load_balancer.get(session, id=lb.id)
 
     def create_pool_on_listener(self, session, listener_id,
@@ -166,11 +193,8 @@ class Repositories(object):
         :returns: octavia.common.data_models.Pool
         """
         with session.begin(subtransactions=True):
-            if not pool_dict.get('id'):
-                pool_dict['id'] = uuidutils.generate_uuid()
             db_pool = self.pool.create(session, **pool_dict)
             if sp_dict:
-                sp_dict['pool_id'] = pool_dict['id']
                 self.session_persistence.create(session, **sp_dict)
             self.listener.update(session, listener_id,
                                  default_pool_id=pool_dict['id'])

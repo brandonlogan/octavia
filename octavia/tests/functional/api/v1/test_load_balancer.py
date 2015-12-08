@@ -225,3 +225,21 @@ class TestLoadBalancer(base.BaseAPITest):
     def test_delete_bad_lb_id(self):
         path = self.LB_PATH.format(lb_id='bad_uuid')
         self.delete(path, status=404)
+
+
+class TestLoadBalancerTree(base.BaseAPITest):
+
+    def test_create_with_listener(self):
+        lb_json = {'name': 'test1', 'vip': {}, 'listeners': [{
+            'protocol': 'HTTP', 'protocol_port': 80}]
+        }
+        response = self.post(self.LBS_PATH, lb_json)
+        api_lb = response.json
+        self.assertTrue(uuidutils.is_uuid_like(api_lb.get('id')))
+        self.assertEqual(lb_json.get('name'), api_lb.get('name'))
+        self.assertEqual(constants.PENDING_CREATE,
+                         api_lb.get('provisioning_status'))
+        self.assertEqual(constants.OFFLINE,
+                         api_lb.get('operating_status'))
+        self.assertTrue(api_lb.get('enabled'))
+        self.assert_final_lb_statuses(api_lb.get('id'))

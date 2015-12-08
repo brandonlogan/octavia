@@ -15,6 +15,7 @@
 from wsme import types as wtypes
 
 from octavia.api.v1.types import base
+from octavia.api.v1.types import listener
 
 
 class VIP(base.BaseType):
@@ -34,6 +35,26 @@ class LoadBalancerResponse(base.BaseType):
     enabled = wtypes.wsattr(bool)
     vip = wtypes.wsattr(VIP)
     project_id = wtypes.wsattr(wtypes.UuidType())
+    listeners = wtypes.wsattr([listener.ListenerResponse])
+
+    @classmethod
+    def from_data_model(cls, data_model, children=False):
+        lb = super(LoadBalancerResponse, cls).from_data_model(
+            data_model, children=children)
+        # NOTE(blogan): VIP is technically a child but its the main piece of
+        # a load balancer so it makes sense to show it no matter what.
+        lb.vip = VIP.from_data_model(data_model.vip)
+        if not children:
+            # NOTE(blogan): don't show listeners if the request does not want
+            # to see children
+            del lb.listeners
+            return lb
+        lb.listeners = [
+            listener.ListenerResponse.from_data_model(
+                listener_dm, children=children)
+            for listener_dm in data_model.listeners
+        ]
+        return lb
 
 
 class LoadBalancerPOST(base.BaseType):
@@ -44,6 +65,7 @@ class LoadBalancerPOST(base.BaseType):
     enabled = wtypes.wsattr(bool, default=True)
     vip = wtypes.wsattr(VIP, mandatory=True)
     project_id = wtypes.wsattr(wtypes.UuidType())
+    listeners = wtypes.wsattr([listener.ListenerPOST], default=[])
 
 
 class LoadBalancerPUT(base.BaseType):

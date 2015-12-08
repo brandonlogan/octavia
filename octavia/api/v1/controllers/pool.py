@@ -27,6 +27,7 @@ from octavia.api.v1.types import pool as pool_types
 from octavia.common import constants
 from octavia.common import data_models
 from octavia.common import exceptions
+from octavia.db import prepare as db_prepare
 from octavia.i18n import _LI
 
 
@@ -131,9 +132,8 @@ class PoolsController(base.BaseController):
         # will only be ACTIVE when all it's listeners as ACTIVE.
 
         self._test_lb_status(context.session)
-        pool_dict = pool.to_dict()
+        pool_dict = db_prepare.create_pool(pool.to_dict())
         sp_dict = pool_dict.pop('session_persistence', None)
-        pool_dict['operating_status'] = constants.OFFLINE
 
         return self._validate_create_pool(context.session, sp_dict, pool_dict)
 

@@ -27,6 +27,7 @@ from octavia.common import constants
 from octavia.common import data_models
 from octavia.common import exceptions
 from octavia.db import api as db_api
+from octavia.db import prepare as db_prepare
 from octavia.i18n import _LI
 
 
@@ -84,16 +85,15 @@ class ListenersController(base.BaseController):
         Update the load balancer db when provisioning status changes.
         """
         try:
-            sni_container_ids = listener_dict.pop('sni_containers')
+            sni_containers = listener_dict.pop('sni_containers', [])
             db_listener = self.repositories.listener.create(
                 context.session, **listener_dict)
-            if sni_container_ids is not None:
-                for container_id in sni_container_ids:
-                    sni_dict = {'listener_id': db_listener.id,
-                                'tls_container_id': container_id}
-                    self.repositories.sni.create(context.session, **sni_dict)
-                db_listener = self.repositories.listener.get(context.session,
-                                                             id=db_listener.id)
+            if sni_containers:
+                for sni_container in sni_containers:
+                    self.repositories.sni.create(
+                        context.session, **sni_container)
+                db_listener = self.repositories.listener.get(
+                    context.session, id=db_listener.id)
         except odb_exceptions.DBDuplicateEntry as de:
             # Setting LB back to active because this is just a validation
             # failure
@@ -132,15 +132,9 @@ class ListenersController(base.BaseController):
         context = pecan.request.context.get('octavia_context')
         self._secure_data(listener)
         lb_repo = self.repositories.load_balancer
-        self._test_lb_status_post(context, lb_repo)
-        listener_dict = listener.to_dict()
-        listener_dict['load_balancer_id'] = self.load_balancer_id
-        listener_dict['provisioning_status'] = constants.PENDING_CREATE
-        listener_dict['operating_status'] = constants.OFFLINE
-        # NOTE(blogan): Throwing away because we should not store secure data
-        # in the database nor should we send it to a handler.
-        if 'tls_termination' in listener_dict:
-            del listener_dict['tls_termination']
+        self._test_lb_status_post(context.session, lb_repo)
+        listener_dict = db_prepare.create_listener(
+            listener.to_dict(), self.load_balancer_id)
         # This is the extra validation layer for wrong protocol or duplicate
         # listeners on the same load balancer.
         return self._validate_listeners(context, lb_repo, listener_dict)

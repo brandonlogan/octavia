@@ -40,10 +40,11 @@ class IPAddressType(wtypes.UserType):
 
 class BaseType(wtypes.Base):
     @classmethod
-    def from_data_model(cls, data_model):
+    def from_data_model(cls, data_model, children=False):
         """Converts data_model to Octavia WSME type.
 
         :param data_model: data model to convert from
+        :param children: convert child data models
         """
         return cls(**data_model.to_dict())
 
@@ -62,6 +63,8 @@ class BaseType(wtypes.Base):
                 continue
             if value and isinstance(value, BaseType):
                 value = value.to_dict()
+            if value and isinstance(value, list):
+                value = [val.to_dict() for val in value]
             if isinstance(value, wtypes.UnsetType):
                 if render_unsets:
                     value = None

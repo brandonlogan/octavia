@@ -15,6 +15,7 @@
 from wsme import types as wtypes
 
 from octavia.api.v1.types import base
+from octavia.api.v1.types import pool
 
 
 class TLSTermination(base.BaseType):
@@ -38,6 +39,25 @@ class ListenerResponse(base.BaseType):
     tls_certificate_id = wtypes.wsattr(wtypes.StringType(max_length=255))
     sni_containers = [wtypes.StringType(max_length=255)]
     project_id = wtypes.wsattr(wtypes.UuidType())
+    default_pool = wtypes.wsattr(pool.PoolResponse)
+
+    @classmethod
+    def from_data_model(cls, data_model, children=False):
+        listener = super(ListenerResponse, cls).from_data_model(
+            data_model, children=children)
+        # NOTE(blogan): we should show sni_containers for every call to show
+        # a listener
+        listener.sni_containers = [sni_c.tls_container_id
+                                   for sni_c in data_model.sni_containers]
+        if not children:
+            # NOTE(blogan): do not show default_pool if the request does not
+            # want to see children
+            del listener.default_pool
+            return listener
+        if data_model.default_pool:
+            listener.default_pool = pool.PoolResponse.from_data_model(
+                data_model.default_pool, children=children)
+        return listener
 
 
 class ListenerPOST(base.BaseType):
@@ -53,6 +73,7 @@ class ListenerPOST(base.BaseType):
     tls_termination = wtypes.wsattr(TLSTermination)
     sni_containers = [wtypes.StringType(max_length=255)]
     project_id = wtypes.wsattr(wtypes.UuidType())
+    default_pool = wtypes.wsattr(pool.PoolPOST)
 
 
 class ListenerPUT(base.BaseType):

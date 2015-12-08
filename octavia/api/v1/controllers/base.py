@@ -35,7 +35,7 @@ class BaseController(rest.RestController):
         ).driver
 
     @staticmethod
-    def _convert_db_to_type(db_entity, to_type):
+    def _convert_db_to_type(db_entity, to_type, children=False):
         """Converts a data model into a Octavia WSME type
 
         :param db_entity: data model to convert
@@ -45,18 +45,7 @@ class BaseController(rest.RestController):
             to_type = to_type[0]
 
         def _convert(db_obj):
-            api_type = to_type.from_data_model(db_obj)
-            if to_type == lb_types.LoadBalancerResponse:
-                api_type.vip = lb_types.VIP.from_data_model(db_obj.vip)
-            elif (to_type == pool_types.PoolResponse
-                  and db_obj.session_persistence):
-                api_type.session_persistence = (
-                    pool_types.SessionPersistenceResponse.from_data_model(
-                        db_obj.session_persistence))
-            elif to_type == listener_types.ListenerResponse:
-                api_type.sni_containers = [sni_c.tls_container_id
-                                           for sni_c in db_obj.sni_containers]
-            return api_type
+            return to_type.from_data_model(db_obj, children=children)
         if isinstance(db_entity, list):
             converted = [_convert(db_obj) for db_obj in db_entity]
         else:
