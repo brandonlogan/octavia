@@ -24,6 +24,7 @@ from octavia.common import constants
 from octavia.common import data_models
 from octavia.common import exceptions
 from octavia.db import api as db_api
+from octavia.db import prepare as db_prepare
 from octavia.i18n import _LI
 
 
@@ -66,8 +67,9 @@ class HealthMonitorController(base.BaseController):
                 raise exceptions.DuplicateHealthMonitor()
         except exceptions.NotFound:
             pass
-        hm_dict = health_monitor.to_dict()
-        hm_dict['pool_id'] = self.pool_id
+        hm_dict = db_prepare.create_health_monitor(
+            health_monitor.to_dict(), self.pool_id)
+
         # Verify load balancer is in a mutable status.  If so it can be assumed
         # that the listener is also in a mutable status because a load balancer
         # will only be ACTIVE when all it's listeners as ACTIVE.

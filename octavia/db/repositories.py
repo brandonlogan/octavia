@@ -146,11 +146,8 @@ class Repositories(object):
         :returns: octava.common.data_models.LoadBalancer
         """
         with session.begin():
-            if not lb_dict.get('id'):
-                lb_dict['id'] = uuidutils.generate_uuid()
             lb = models.LoadBalancer(**lb_dict)
             session.add(lb)
-            vip_dict['load_balancer_id'] = lb_dict['id']
             vip = models.Vip(**vip_dict)
             session.add(vip)
         return self.load_balancer.get(session, id=lb.id)
@@ -166,11 +163,8 @@ class Repositories(object):
         :returns: octavia.common.data_models.Pool
         """
         with session.begin(subtransactions=True):
-            if not pool_dict.get('id'):
-                pool_dict['id'] = uuidutils.generate_uuid()
             db_pool = self.pool.create(session, **pool_dict)
             if sp_dict:
-                sp_dict['pool_id'] = pool_dict['id']
                 self.session_persistence.create(session, **sp_dict)
             self.listener.update(session, listener_id,
                                  default_pool_id=pool_dict['id'])
