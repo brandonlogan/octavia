@@ -68,7 +68,8 @@ class LoadBalancerFlows(object):
 
         return lb_create_flow
 
-    def get_post_lb_amp_association_flow(self, prefix, topology):
+    def get_post_lb_amp_association_flow(self, prefix, topology,
+                                         full_tree=False):
         """Reload the loadbalancer and create networking subflows for
 
         created/allocated amphorae.
@@ -98,6 +99,8 @@ class LoadBalancerFlows(object):
 
         post_create_LB_flow.add(database_tasks.UpdateLoadbalancerInDB(
             requires=[constants.LOADBALANCER, constants.UPDATE_DICT]))
+        if full_tree:
+            return post_create_LB_flow
         post_create_LB_flow.add(database_tasks.MarkLBActiveInDB(
             name=sf_name + '-' + constants.MARK_LB_ACTIVE_INDB,
             requires=constants.LOADBALANCER))
@@ -189,3 +192,10 @@ class LoadBalancerFlows(object):
             requires=constants.LOADBALANCER))
 
         return update_LB_flow
+
+    def get_full_tree_load_balancer_finalize_flow(self):
+        finalize_flow = linear_flow.Flow(
+            constants.CREATE_LOADBALANCER_TREE_FINALIZE_FLOW)
+        finalize_flow.add(database_tasks.MarkLBActiveInDB(
+            requires=constants.LOADBALANCER))
+        return finalize_flow

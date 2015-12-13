@@ -112,6 +112,8 @@ CREATE_LISTENER_FLOW = 'octavia-create-listener_flow'
 CREATE_LOADBALANCER_FLOW = 'octavia-create-loadbalancer-flow'
 CREATE_MEMBER_FLOW = 'octavia-create-member-flow'
 CREATE_POOL_FLOW = 'octavia-create-pool-flow'
+CREATE_LOADBALANCER_TREE_FINALIZE_FLOW = (
+    'octavia-create-loadbalancer-tree-finalize-flow')
 DELETE_AMPHORA_FLOW = 'octavia-delete-amphora-flow'
 DELETE_HEALTH_MONITOR_FLOW = 'octavia-delete-health-monitor-flow'
 DELETE_LISTENER_FLOW = 'octavia-delete-listener_flow'

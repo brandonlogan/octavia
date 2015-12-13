@@ -24,7 +24,7 @@ from octavia.controller.worker.tasks import network_tasks
 
 class MemberFlows(object):
 
-    def get_create_member_flow(self):
+    def get_create_member_flow(self, full_tree=False):
         """Create a flow to create a member
 
         :returns: The flow for creating a member
@@ -40,6 +40,8 @@ class MemberFlows(object):
         ))
         create_member_flow.add(amphora_driver_tasks.ListenerUpdate(
             requires=(constants.LISTENER, constants.VIP)))
+        if full_tree:
+            return create_member_flow
         create_member_flow.add(database_tasks.
                                MarkLBAndListenerActiveInDB(
                                    requires=(constants.LOADBALANCER,

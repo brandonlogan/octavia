@@ -24,7 +24,7 @@ from octavia.controller.worker.tasks import network_tasks
 
 class ListenerFlows(object):
 
-    def get_create_listener_flow(self):
+    def get_create_listener_flow(self, full_tree=False):
         """Create a flow to create a listener
 
         :returns: The flow for creating a listener
@@ -40,10 +40,13 @@ class ListenerFlows(object):
             requires=[constants.LISTENER, constants.VIP]))
         create_listener_flow.add(network_tasks.UpdateVIP(
             requires=constants.LOADBALANCER))
-        create_listener_flow.add(database_tasks.
-                                 MarkLBAndListenerActiveInDB(
-                                     requires=[constants.LOADBALANCER,
-                                               constants.LISTENER]))
+        if full_tree:
+            create_listener_flow.add(database_tasks.MarkListenerActiveInDB(
+                requires=constants.LISTENER))
+        else:
+            create_listener_flow.add(
+                database_tasks.MarkLBAndListenerActiveInDB(
+                    requires=[constants.LOADBALANCER, constants.LISTENER]))
         return create_listener_flow
 
     def get_delete_listener_flow(self):

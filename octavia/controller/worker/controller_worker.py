@@ -166,10 +166,12 @@ class ControllerWorker(base_taskflow.BaseTaskFlowEngine):
                                                log=LOG):
             update_hm_tf.run()
 
-    def create_listener(self, listener_id):
+    def create_listener(self, listener_id, full_tree=False):
         """Creates a listener.
 
         :param listener_id: ID of the listener to create
+        :param full_tree: boolean of whether this is part of a full lb tree
+                          creation request
         :returns: None
         :raises NoSuitableLB: Unable to find the load balancer
         """
@@ -178,15 +180,12 @@ class ControllerWorker(base_taskflow.BaseTaskFlowEngine):
         load_balancer = listener.load_balancer
         vip = listener.load_balancer.vip
 
-        create_listener_tf = self._taskflow_load(self._listener_flows.
-                                                 get_create_listener_flow(),
-                                                 store={constants.LISTENER:
-                                                        listener,
-                                                        constants.LOADBALANCER:
-                                                            load_balancer,
-                                                        constants.VIP: vip})
-        with tf_logging.DynamicLoggingListener(create_listener_tf,
-                                               log=LOG):
+        create_listener_tf = self._taskflow_load(
+            self._listener_flows.get_create_listener_flow(full_tree=full_tree),
+            store={constants.LISTENER: listener,
+                   constants.LOADBALANCER: load_balancer,
+                   constants.VIP: vip})
+        with tf_logging.DynamicLoggingListener(create_listener_tf, log=LOG):
             create_listener_tf.run()
 
     def delete_listener(self, listener_id):
@@ -235,6 +234,40 @@ class ControllerWorker(base_taskflow.BaseTaskFlowEngine):
         with tf_logging.DynamicLoggingListener(update_listener_tf, log=LOG):
             update_listener_tf.run()
 
+    def _create_load_balancer_tree(self, store, load_balancer):
+        topology = CONF.controller_worker.loadbalancer_topology
+        create_lb_tf = self._taskflow_load(
+            self._lb_flows.get_create_load_balancer_flow(topology=topology),
+            store=store)
+        with tf_logging.DynamicLoggingListener(create_lb_tf, log=LOG):
+            create_lb_tf.run()
+            # Ideally the following flow should be integrated with the
+            # create_active_standby flow. This is not possible with the
+            # current version of taskflow as it flatten out the flows.
+            # Bug report: https://bugs.launchpad.net/taskflow/+bug/1479466
+            post_lb_amp_assoc = self._taskflow_load(
+                self._lb_flows.get_post_lb_amp_association_flow(
+                    prefix='post-amphora-association',
+                    topology=CONF.controller_worker.loadbalancer_topology,
+                    full_tree=True),
+                store=store)
+            with tf_logging.DynamicLoggingListener(post_lb_amp_assoc, log=LOG):
+                post_lb_amp_assoc.run()
+            # NOTE(blogan): This is not calling the pool or health monitor
+            # creates because calling just create_listener will update the
+            # haproxy config with everything already in the db.  The member
+            # create is being called for the network plugging it does.
+            for listener in load_balancer.listeners:
+                self.create_listener(listener.id, full_tree=True)
+                if listener.default_pool:
+                    for member in listener.default_pool.members:
+                        self.create_member(member.id, full_tree=True)
+            lb_tree_finalize = self._taskflow_load(
+                self._lb_flows.get_full_tree_load_balancer_finalize_flow(),
+                store={constants.LOADBALANCER: load_balancer})
+            with tf_logging.DynamicLoggingListener(lb_tree_finalize, log=LOG):
+                lb_tree_finalize.run()
+
     def create_load_balancer(self, load_balancer_id):
         """Creates a load balancer by allocating Amphorae.
 
@@ -265,12 +298,17 @@ class ControllerWorker(base_taskflow.BaseTaskFlowEngine):
         # blogan and sbalukoff asked to remove the else check here
         # as it is also checked later in the flow create code
 
+        lb = self._lb_repo.get(db_apis.get_session(), id=load_balancer_id)
+        # if listeners exist then this was a request to create many resources
+        # at once, so different logic will be needed.
+        if lb.listeners:
+            self._create_load_balancer_tree(store, lb)
+            return
+
         create_lb_tf = self._taskflow_load(
-            self._lb_flows.get_create_load_balancer_flow(
-                topology=CONF.controller_worker.loadbalancer_topology),
+            self._lb_flows.get_create_load_balancer_flow(topology=topology),
             store=store)
-        with tf_logging.DynamicLoggingListener(create_lb_tf,
-                                               log=LOG):
+        with tf_logging.DynamicLoggingListener(create_lb_tf, log=LOG):
             create_lb_tf.run()
             # Ideally the following flow should be integrated with the
             # create_active_standby flow. This is not possible with the
@@ -281,8 +319,7 @@ class ControllerWorker(base_taskflow.BaseTaskFlowEngine):
                     prefix='post-amphora-association',
                     topology=CONF.controller_worker.loadbalancer_topology),
                 store=store)
-            with tf_logging.DynamicLoggingListener(post_lb_amp_assoc,
-                                                   log=LOG):
+            with tf_logging.DynamicLoggingListener(post_lb_amp_assoc, log=LOG):
                 post_lb_amp_assoc.run()
 
     def delete_load_balancer(self, load_balancer_id):
@@ -323,10 +360,12 @@ class ControllerWorker(base_taskflow.BaseTaskFlowEngine):
                                                log=LOG):
             update_lb_tf.run()
 
-    def create_member(self, member_id):
+    def create_member(self, member_id, full_tree=False):
         """Creates a pool member.
 
         :param member_id: ID of the member to create
+        :param full_tree: boolean of whether this is part of a full lb tree
+                          creation request
         :returns: None
         :raises NoSuitablePool: Unable to find the node pool
         """
@@ -338,16 +377,11 @@ class ControllerWorker(base_taskflow.BaseTaskFlowEngine):
         load_balancer = listener.load_balancer
         vip = listener.load_balancer.vip
 
-        create_member_tf = self._taskflow_load(self._member_flows.
-                                               get_create_member_flow(),
-                                               store={constants.MEMBER: member,
-                                                      constants.LISTENER:
-                                                      listener,
-                                                      constants.LOADBALANCER:
-                                                          load_balancer,
-                                                      constants.VIP: vip})
-        with tf_logging.DynamicLoggingListener(create_member_tf,
-                                               log=LOG):
+        create_member_tf = self._taskflow_load(
+            self._member_flows.get_create_member_flow(full_tree=full_tree),
+            store={constants.MEMBER: member, constants.LISTENER: listener,
+                   constants.LOADBALANCER: load_balancer, constants.VIP: vip})
+        with tf_logging.DynamicLoggingListener(create_member_tf, log=LOG):
             create_member_tf.run()
 
     def delete_member(self, member_id):
