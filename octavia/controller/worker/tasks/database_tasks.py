@@ -982,3 +982,27 @@ class AllocateListenerPeerPort(BaseDatabaseTask):
         """
         self.listener_repo.update(db_apis.get_session(), listener.id,
                                   peer_port=None)
+
+
+class AllocateManyListenerPeerPorts(BaseDatabaseTask):
+
+    def execute(self, listeners):
+        for new_listener in listeners:
+            max_peer_port = 0
+            for listener in new_listener.load_balancer.listeners:
+                if listener.peer_port > max_peer_port:
+                    max_peer_port = listener.peer_port
+
+            if max_peer_port == 0:
+                port = constants.HAPROXY_BASE_PEER_PORT
+            else:
+                port = max_peer_port + 1
+
+            self.listener_repo.update(db_apis.get_session(), new_listener.id,
+                                      peer_port=port)
+
+    def revert(self, listeners, *args, **kwargs):
+        for listener in listeners:
+            self.listener_repo.update(db_apis.get_session(), listener.id,
+                                      peer_port=None)
+
